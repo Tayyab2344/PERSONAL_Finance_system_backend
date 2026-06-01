@@ -133,6 +133,15 @@ export const db = {
     return res.rows[0] || null;
   },
 
+  async updateUserPassword(id, passwordHash) {
+    const intId = parseInt(id, 10);
+    const res = await pool.query(
+      'UPDATE users SET password = $1 WHERE id = $2 RETURNING id, name, email',
+      [passwordHash, intId]
+    );
+    return res.rows[0];
+  },
+
   // INCOME OPERATIONS
   async addIncome(userId, source, amount, date) {
     const decAmount = parseFloat(amount);

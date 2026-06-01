@@ -18,6 +18,7 @@ router.get('/health', (req, res) => res.json({ status: "OK", timestamp: new Date
 router.post('/auth/register', authLimiter, authController.register);
 router.post('/auth/login', authLimiter, authController.login);
 router.get('/auth/me', authMiddleware, authController.getMe);
+router.post('/auth/change-password', authMiddleware, authLimiter, authController.changePassword);
 
 // Finance Routes
 router.get('/finance/summary', authMiddleware, financeController.getDashboardSummary);
@@ -33,6 +34,7 @@ router.get('/finance/goals/:goalId/contributions', authMiddleware, financeContro
 router.get('/finance/predictions', authMiddleware, financeController.getPredictions);
 router.get('/finance/insights', authMiddleware, financeController.getInsights);
 router.post('/finance/budget', authMiddleware, financeController.upsertBudget);
+router.post('/finance/reset', authMiddleware, financeController.resetData);
 router.get('/finance/analytics/dashboard', authMiddleware, analyticsController.getAnalyticsDashboard);
 router.post('/finance/analytics/seed', authMiddleware, analyticsController.seedMockData);
 

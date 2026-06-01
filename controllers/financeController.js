@@ -222,3 +222,15 @@ export const upsertBudget = async (req, res) => {
     res.status(500).json({ error: "Failed to set savings target." });
   }
 };
+
+export const resetData = async (req, res) => {
+  const userId = req.user.id;
+  try {
+    await db.clearUserData(userId);
+    await db.addAuditLog(userId, 'RESET_USER_DATA', `Cleared all personal financial data`, req.ip);
+    res.json({ message: "All financial data has been reset to Rs. 0." });
+  } catch (error) {
+    console.error("Reset data error:", error);
+    res.status(500).json({ error: "Failed to reset user financial data." });
+  }
+};
