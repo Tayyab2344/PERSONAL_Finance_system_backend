@@ -8,7 +8,10 @@ export const analyticsService = {
 
   // Helper to parse dates and return details
   getDateDetails(dateStr = null) {
-    const date = dateStr ? new Date(dateStr) : new Date();
+    let date = dateStr ? new Date(dateStr) : new Date();
+    if (!dateStr) {
+      date = new Date(date.toLocaleString('en-US', { timeZone: 'Asia/Karachi' }));
+    }
     const year = date.getFullYear();
     const monthInt = date.getMonth() + 1;
     const monthStr = monthInt.toString().padStart(2, '0');
@@ -63,7 +66,8 @@ export const analyticsService = {
     const budgetRemaining = Math.max(0, availableBudget - totalExpenses);
 
     // Daily spending stats
-    const todayStr = new Date().toISOString().split('T')[0];
+    const tzDate = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Karachi' }));
+    const todayStr = `${tzDate.getFullYear()}-${(tzDate.getMonth() + 1).toString().padStart(2, '0')}-${tzDate.getDate().toString().padStart(2, '0')}`;
     const todayExpenses = thisMonthExpenses.filter(e => e.date === todayStr);
     const todaySpending = todayExpenses.reduce((sum, e) => sum + parseFloat(e.amount), 0);
 
@@ -97,18 +101,18 @@ export const analyticsService = {
     // Daily spending trend chart data for current month (last 15 days)
     const last15DaysData = [];
     for (let i = 14; i >= 0; i--) {
-      const d = new Date();
+      const d = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Karachi' }));
       d.setDate(d.getDate() - i);
-      const dStr = d.toISOString().split('T')[0];
+      const dStr = `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, '0')}-${d.getDate().toString().padStart(2, '0')}`;
       const label = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
       const amt = dailyExpensesMap[dStr] || 0;
       last15DaysData.push({ date: label, amount: amt });
     }
 
     // 2. CATEGORY ANALYTICS WITH PREVIOUS MONTH COMPARISON
-    const prevMonthDate = new Date();
+    const prevMonthDate = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Karachi' }));
     prevMonthDate.setMonth(prevMonthDate.getMonth() - 1);
-    const prevMonthKey = prevMonthDate.toISOString().substring(0, 7);
+    const prevMonthKey = `${prevMonthDate.getFullYear()}-${(prevMonthDate.getMonth() + 1).toString().padStart(2, '0')}`;
     const prevMonthExpenses = allExpenses.filter(e => e.date.substring(0, 7) === prevMonthKey);
 
     const categories = ['Food', 'Fuel', 'Transport', 'Education', 'Shopping', 'Bills', 'Entertainment', 'Health', 'Other'];
@@ -175,9 +179,9 @@ export const analyticsService = {
     // Monthly Analysis (last 4 months)
     const last4Months = [];
     for (let i = 3; i >= 0; i--) {
-      const d = new Date();
+      const d = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Karachi' }));
       d.setMonth(d.getMonth() - i);
-      const mKey = d.toISOString().substring(0, 7);
+      const mKey = `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, '0')}`;
       const label = d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
       
       const mExpenses = allExpenses.filter(e => e.date.substring(0, 7) === mKey).reduce((sum, e) => sum + parseFloat(e.amount), 0);
@@ -525,7 +529,7 @@ export const analyticsService = {
       const monthsToComplete = monthlySavingVelocity > 0 ? remaining / monthlySavingVelocity : 0;
       
       // Calculate projected date
-      const targetDate = new Date();
+      const targetDate = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Karachi' }));
       if (monthsToComplete > 0) {
         targetDate.setMonth(targetDate.getMonth() + Math.ceil(monthsToComplete));
       }

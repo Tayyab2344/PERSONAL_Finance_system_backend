@@ -16,7 +16,10 @@ export const financialEngine = {
   },
 
   getDateDetails(dateString = null) {
-    const date = dateString ? new Date(dateString) : new Date();
+    let date = dateString ? new Date(dateString) : new Date();
+    if (!dateString) {
+      date = new Date(date.toLocaleString('en-US', { timeZone: 'Asia/Karachi' }));
+    }
     const year = date.getFullYear();
     const monthInt = date.getMonth() + 1; // 1-12
     const monthStr = monthInt.toString().padStart(2, '0');
@@ -62,7 +65,7 @@ export const financialEngine = {
       remainingDays = Math.max(1, totalDays - this.getDateDetails().currentDay + 1);
     } else {
       // For future months
-      const today = new Date();
+      const today = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Karachi' }));
       const targetMonthStart = new Date(`${monthKey}-01`);
       if (targetMonthStart > today) {
         remainingDays = totalDays;
