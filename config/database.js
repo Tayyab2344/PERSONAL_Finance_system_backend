@@ -12,6 +12,37 @@ const pool = new pg.Pool({
 
 console.log("Database Mode: PostgreSQL (Neon Only)");
 
+const getLocalDateString = (d = new Date()) => {
+  const year = d.getFullYear();
+  const month = (d.getMonth() + 1).toString().padStart(2, '0');
+  const day = d.getDate().toString().padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const formatDateString = (date) => {
+  if (!date) {
+    return getLocalDateString();
+  }
+  if (typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    return date;
+  }
+  const d = new Date(date);
+  if (isNaN(d.getTime())) {
+    return getLocalDateString();
+  }
+  return getLocalDateString(d);
+};
+
+const formatRowDate = (d) => {
+  if (d instanceof Date) {
+    const year = d.getFullYear();
+    const month = (d.getMonth() + 1).toString().padStart(2, '0');
+    const day = d.getDate().toString().padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+  return d;
+};
+
 export const db = {
   async init() {
     // Postgres: Create tables if they do not exist
@@ -158,13 +189,13 @@ export const db = {
   async addIncome(userId, source, amount, date, accountType = 'Cash') {
     const decAmount = parseFloat(amount);
     const intUserId = parseInt(userId, 10);
-    const formattedDate = date ? new Date(date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
+    const formattedDate = formatDateString(date);
 
     const res = await pool.query(
       'INSERT INTO incomes (user_id, source, amount, date, account_type) VALUES ($1, $2, $3, $4, $5) RETURNING *',
       [intUserId, source, decAmount, formattedDate, accountType]
     );
-    return res.rows[0];
+    return res.rows[0] ? { ...res.rows[0], amount: parseFloat(res.rows[0].amount), date: formatRowDate(res.rows[0].date) } : null;
   },
 
   async getIncomes(userId, month = null) {
@@ -177,21 +208,25 @@ export const db = {
     }
     query += ' ORDER BY date DESC, id DESC';
     const res = await pool.query(query, params);
-    return res.rows.map(r => ({ ...r, amount: parseFloat(r.amount) }));
+    return res.rows.map(r => ({
+      ...r,
+      amount: parseFloat(r.amount),
+      date: formatRowDate(r.date)
+    }));
   },
 
   // EXPENSE OPERATIONS
   async addExpense(userId, category, amount, description, date, createdAt = null, accountType = 'Cash') {
     const decAmount = parseFloat(amount);
     const intUserId = parseInt(userId, 10);
-    const formattedDate = date ? new Date(date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
+    const formattedDate = formatDateString(date);
     const finalCreatedAt = createdAt ? new Date(createdAt).toISOString() : new Date().toISOString();
 
     const res = await pool.query(
       'INSERT INTO expenses (user_id, category, amount, description, date, created_at, account_type) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
       [intUserId, category, decAmount, description || '', formattedDate, finalCreatedAt, accountType]
     );
-    return res.rows[0];
+    return res.rows[0] ? { ...res.rows[0], amount: parseFloat(res.rows[0].amount), date: formatRowDate(res.rows[0].date) } : null;
   },
 
   async getExpenses(userId, month = null) {
@@ -204,7 +239,11 @@ export const db = {
     }
     query += ' ORDER BY date DESC, id DESC';
     const res = await pool.query(query, params);
-    return res.rows.map(r => ({ ...r, amount: parseFloat(r.amount) }));
+    return res.rows.map(r => ({
+      ...r,
+      amount: parseFloat(r.amount),
+      date: formatRowDate(r.date)
+    }));
   },
 
   async deleteExpense(userId, expenseId) {
@@ -219,13 +258,18 @@ export const db = {
     const intUserId = parseInt(userId, 10);
     const decTarget = parseFloat(targetAmount);
     const decCurrent = parseFloat(currentAmount);
-    const formattedDate = targetDate ? new Date(targetDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
+    const formattedDate = formatDateString(targetDate);
 
     const res = await pool.query(
       'INSERT INTO saving_goals (user_id, goal_name, target_amount, current_amount, target_date) VALUES ($1, $2, $3, $4, $5) RETURNING *',
       [intUserId, goalName, decTarget, decCurrent, formattedDate]
     );
-    return res.rows[0];
+    return res.rows[0] ? {
+      ...res.rows[0],
+      target_amount: parseFloat(res.rows[0].target_amount),
+      current_amount: parseFloat(res.rows[0].current_amount),
+      target_date: formatRowDate(res.rows[0].target_date)
+    } : null;
   },
 
   async getSavingGoals(userId) {
@@ -234,7 +278,8 @@ export const db = {
     return res.rows.map(r => ({
       ...r,
       target_amount: parseFloat(r.target_amount),
-      current_amount: parseFloat(r.current_amount)
+      current_amount: parseFloat(r.current_amount),
+      target_date: formatRowDate(r.target_date)
     }));
   },
 
@@ -247,14 +292,19 @@ export const db = {
       'UPDATE saving_goals SET current_amount = $1 WHERE id = $2 AND user_id = $3 RETURNING *',
       [decAmount, intGoalId, intUserId]
     );
-    return res.rows[0] || null;
+    return res.rows[0] ? {
+      ...res.rows[0],
+      target_amount: parseFloat(res.rows[0].target_amount),
+      current_amount: parseFloat(res.rows[0].current_amount),
+      target_date: formatRowDate(res.rows[0].target_date)
+    } : null;
   },
 
   async addGoalContribution(userId, goalId, amount, date) {
     const intUserId = parseInt(userId, 10);
     const intGoalId = parseInt(goalId, 10);
     const decAmount = parseFloat(amount);
-    const formattedDate = date ? new Date(date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
+    const formattedDate = formatDateString(date);
 
     const client = await pool.connect();
     try {
@@ -276,8 +326,17 @@ export const db = {
       );
       await client.query('COMMIT');
       return {
-        contribution: contribRes.rows[0],
-        goal: updatedGoalRes.rows[0]
+        contribution: {
+          ...contribRes.rows[0],
+          amount: parseFloat(contribRes.rows[0].amount),
+          contribution_date: formatRowDate(contribRes.rows[0].contribution_date)
+        },
+        goal: {
+          ...updatedGoalRes.rows[0],
+          target_amount: parseFloat(updatedGoalRes.rows[0].target_amount),
+          current_amount: parseFloat(updatedGoalRes.rows[0].current_amount),
+          target_date: formatRowDate(updatedGoalRes.rows[0].target_date)
+        }
       };
     } catch (err) {
       await client.query('ROLLBACK');
@@ -296,7 +355,11 @@ export const db = {
       WHERE gc.goal_id = $1 AND sg.user_id = $2
       ORDER BY gc.contribution_date DESC, gc.id DESC
     `, [intGoalId, intUserId]);
-    return res.rows.map(r => ({ ...r, amount: parseFloat(r.amount) }));
+    return res.rows.map(r => ({
+      ...r,
+      amount: parseFloat(r.amount),
+      contribution_date: formatRowDate(r.contribution_date)
+    }));
   },
 
   // CHAT HISTORY OPERATIONS
