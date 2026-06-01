@@ -217,6 +217,26 @@ export const db = {
     }));
   },
 
+  async updateIncome(userId, incomeId, source, amount, date, accountType) {
+    const intUserId = parseInt(userId, 10);
+    const intIncomeId = parseInt(incomeId, 10);
+    const decAmount = parseFloat(amount);
+    const formattedDate = formatDateString(date);
+
+    const res = await pool.query(
+      'UPDATE incomes SET source = $1, amount = $2, date = $3, account_type = $4 WHERE id = $5 AND user_id = $6 RETURNING *',
+      [source, decAmount, formattedDate, accountType || 'Cash', intIncomeId, intUserId]
+    );
+    return res.rows[0] ? { ...res.rows[0], amount: parseFloat(res.rows[0].amount), date: formatRowDate(res.rows[0].date) } : null;
+  },
+
+  async deleteIncome(userId, incomeId) {
+    const intUserId = parseInt(userId, 10);
+    const intIncomeId = parseInt(incomeId, 10);
+    await pool.query('DELETE FROM incomes WHERE id = $1 AND user_id = $2', [intIncomeId, intUserId]);
+    return true;
+  },
+
   // EXPENSE OPERATIONS
   async addExpense(userId, category, amount, description, date, createdAt = null, accountType = 'Cash') {
     const decAmount = parseFloat(amount);
@@ -253,6 +273,19 @@ export const db = {
     const intExpenseId = parseInt(expenseId, 10);
     await pool.query('DELETE FROM expenses WHERE id = $1 AND user_id = $2', [intExpenseId, intUserId]);
     return true;
+  },
+
+  async updateExpense(userId, expenseId, category, amount, description, date, accountType) {
+    const intUserId = parseInt(userId, 10);
+    const intExpenseId = parseInt(expenseId, 10);
+    const decAmount = parseFloat(amount);
+    const formattedDate = formatDateString(date);
+
+    const res = await pool.query(
+      'UPDATE expenses SET category = $1, amount = $2, description = $3, date = $4, account_type = $5 WHERE id = $6 AND user_id = $7 RETURNING *',
+      [category, decAmount, description || '', formattedDate, accountType || 'Cash', intExpenseId, intUserId]
+    );
+    return res.rows[0] ? { ...res.rows[0], amount: parseFloat(res.rows[0].amount), date: formatRowDate(res.rows[0].date) } : null;
   },
 
   // SAVINGS GOALS OPERATIONS

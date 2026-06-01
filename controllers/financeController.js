@@ -106,6 +106,83 @@ export const deleteExpense = async (req, res) => {
   }
 };
 
+export const updateExpense = async (req, res) => {
+  const userId = req.user.id;
+  const { id } = req.params;
+  const { category, amount, description, date, account_type } = req.body;
+
+  if (!category || amount === undefined) {
+    return res.status(400).json({ error: "Category and amount are required." });
+  }
+
+  const parsedAmount = parseFloat(amount);
+  if (isNaN(parsedAmount) || parsedAmount <= 0) {
+    return res.status(400).json({ error: "Expense amount must be a positive number." });
+  }
+
+  const validCategories = ['Food', 'Fuel', 'Transport', 'Education', 'Shopping', 'Bills', 'Entertainment', 'Health', 'Other'];
+  if (!validCategories.includes(category)) {
+    return res.status(400).json({ error: `Invalid category. Must be one of: ${validCategories.join(', ')}` });
+  }
+
+  try {
+    const normalizedAccount = normalizeAccountType(account_type);
+    const expense = await db.updateExpense(userId, id, category, parsedAmount, description, date, normalizedAccount);
+    if (!expense) {
+      return res.status(404).json({ error: "Expense not found or access denied." });
+    }
+    await db.addAuditLog(userId, 'UPDATE_EXPENSE', `Updated expense ID ${id} under ${category}: amount ${parsedAmount}, account: ${normalizedAccount}`, req.ip);
+    res.json(expense);
+  } catch (error) {
+    console.error("Update expense error:", error);
+    res.status(500).json({ error: "Failed to update expense." });
+  }
+};
+
+export const updateIncome = async (req, res) => {
+  const userId = req.user.id;
+  const { id } = req.params;
+  const { source, amount, date, account_type } = req.body;
+
+  if (!source || amount === undefined) {
+    return res.status(400).json({ error: "Source and amount are required." });
+  }
+
+  const parsedAmount = parseFloat(amount);
+  if (isNaN(parsedAmount) || parsedAmount <= 0) {
+    return res.status(400).json({ error: "Income amount must be a positive number." });
+  }
+
+  try {
+    const normalizedAccount = normalizeAccountType(account_type);
+    const income = await db.updateIncome(userId, id, source, parsedAmount, date, normalizedAccount);
+    if (!income) {
+      return res.status(404).json({ error: "Income not found or access denied." });
+    }
+    await db.addAuditLog(userId, 'UPDATE_INCOME', `Updated income ID ${id}: ${source}, amount: ${parsedAmount}, account: ${normalizedAccount}`, req.ip);
+    res.json(income);
+  } catch (error) {
+    console.error("Update income error:", error);
+    res.status(500).json({ error: "Failed to update income." });
+  }
+};
+
+export const deleteIncome = async (req, res) => {
+  const userId = req.user.id;
+  const { id } = req.params;
+  try {
+    const deleted = await db.deleteIncome(userId, id);
+    if (!deleted) {
+      return res.status(404).json({ error: "Income not found or access denied." });
+    }
+    await db.addAuditLog(userId, 'DELETE_INCOME', `Deleted income ID ${id}`, req.ip);
+    res.json({ message: "Income deleted successfully." });
+  } catch (error) {
+    console.error("Delete income error:", error);
+    res.status(500).json({ error: "Failed to delete income." });
+  }
+};
+
 export const getSavingGoals = async (req, res) => {
   const userId = req.user.id;
   try {

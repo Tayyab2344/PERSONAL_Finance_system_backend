@@ -24,8 +24,11 @@ router.post('/auth/change-password', authMiddleware, authLimiter, authController
 router.get('/finance/summary', authMiddleware, financeController.getDashboardSummary);
 router.post('/finance/income', authMiddleware, financeController.addIncome);
 router.get('/finance/income', authMiddleware, financeController.getIncomes);
+router.put('/finance/income/:id', authMiddleware, financeController.updateIncome);
+router.delete('/finance/income/:id', authMiddleware, financeController.deleteIncome);
 router.post('/finance/expense', authMiddleware, financeController.addExpense);
 router.get('/finance/expense', authMiddleware, financeController.getExpenses);
+router.put('/finance/expense/:id', authMiddleware, financeController.updateExpense);
 router.delete('/finance/expense/:id', authMiddleware, financeController.deleteExpense);
 router.get('/finance/goals', authMiddleware, financeController.getSavingGoals);
 router.post('/finance/goals', authMiddleware, financeController.addSavingGoal);
