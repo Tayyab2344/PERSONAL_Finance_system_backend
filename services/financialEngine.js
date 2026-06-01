@@ -1,5 +1,14 @@
 import { db } from '../config/database.js';
 
+export const normalizeAccountType = (type) => {
+  if (!type) return 'Cash';
+  const clean = type.toLowerCase().replace(/[^a-z0-9]/g, '');
+  if (clean.includes('easypaisa') || clean.includes('easy')) return 'EasyPaisa';
+  if (clean.includes('jazzcash') || clean.includes('jazz') || clean.includes('jc')) return 'JazzCash';
+  if (clean.includes('bank') || clean.includes('card') || clean.includes('hbl') || clean.includes('account')) return 'Bank';
+  return 'Cash';
+};
+
 export const financialEngine = {
   // Get days helper
   getDaysInMonth(year, month) {
@@ -42,7 +51,7 @@ export const financialEngine = {
     const availableBudget = Math.max(0, totalIncome - savingsTarget);
     
     // Remaining Spending budget after current expenses
-    const budgetRemaining = availableBudget - totalExpenses;
+    const budgetRemaining = Math.max(0, availableBudget - totalExpenses);
 
     // Daily Spending Allowance
     // Available Spending Budget remaining / Remaining days
@@ -60,12 +69,44 @@ export const financialEngine = {
       }
     }
     
-    const dailySpendingAllowance = remainingDays > 0 ? (budgetRemaining / remainingDays) : 0;
+    const dailySpendingAllowance = remainingDays > 0 ? Math.max(0, budgetRemaining / remainingDays) : 0;
 
     // Total Savings (Current Goal progress)
     const currentSavings = goals.reduce((sum, g) => sum + g.current_amount, 0);
     const targetSavings = goals.reduce((sum, g) => sum + g.target_amount, 0);
     const savingsProgress = targetSavings > 0 ? Math.min(100, Math.round((currentSavings / targetSavings) * 100)) : 0;
+
+    // Fetch all-time records for wallet balances
+    const allIncomes = await db.getIncomes(userId);
+    const allExpenses = await db.getExpenses(userId);
+
+    const accountBalances = {
+      Cash: 0,
+      EasyPaisa: 0,
+      JazzCash: 0,
+      Bank: 0
+    };
+
+    allIncomes.forEach(item => {
+      const type = normalizeAccountType(item.account_type);
+      if (accountBalances[type] !== undefined) {
+        accountBalances[type] += item.amount;
+      }
+    });
+
+    allExpenses.forEach(item => {
+      const type = normalizeAccountType(item.account_type);
+      if (accountBalances[type] !== undefined) {
+        accountBalances[type] -= item.amount;
+      }
+    });
+
+    // Make sure we round these to 2 decimal places to avoid float issues
+    Object.keys(accountBalances).forEach(key => {
+      accountBalances[key] = parseFloat(accountBalances[key].toFixed(2));
+    });
+
+    const totalBalance = parseFloat(Object.values(accountBalances).reduce((sum, val) => sum + val, 0).toFixed(2));
 
     return {
       month: monthKey,
@@ -78,7 +119,9 @@ export const financialEngine = {
       dailySpendingAllowance: parseFloat(dailySpendingAllowance.toFixed(2)),
       currentSavings,
       savingsProgress,
-      goalsCount: goals.length
+      goalsCount: goals.length,
+      totalBalance,
+      accountBalances
     };
   },
 

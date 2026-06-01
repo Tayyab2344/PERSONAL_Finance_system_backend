@@ -60,7 +60,7 @@ export const analyticsService = {
 
     // Available spending budget = Income - Savings Target
     const availableBudget = Math.max(0, totalIncome - savingsTarget);
-    const budgetRemaining = availableBudget - totalExpenses;
+    const budgetRemaining = Math.max(0, availableBudget - totalExpenses);
 
     // Daily spending stats
     const todayStr = new Date().toISOString().split('T')[0];
@@ -289,7 +289,7 @@ export const analyticsService = {
     }
 
     // Factor C: Budget Discipline (Deficits) (Max 30 pts)
-    if (budgetRemaining < 0) {
+    if (totalExpenses > availableBudget) {
       healthScore -= 30;
       deductions.push(`Overspent Available Budget: -30 pts`);
     }

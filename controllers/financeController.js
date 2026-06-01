@@ -1,5 +1,5 @@
 import { db } from '../config/database.js';
-import { financialEngine } from '../services/financialEngine.js';
+import { financialEngine, normalizeAccountType } from '../services/financialEngine.js';
 
 export const getDashboardSummary = async (req, res) => {
   const userId = req.user.id;
@@ -15,7 +15,7 @@ export const getDashboardSummary = async (req, res) => {
 
 export const addIncome = async (req, res) => {
   const userId = req.user.id;
-  const { source, amount, date } = req.body;
+  const { source, amount, date, account_type } = req.body;
   
   if (!source || amount === undefined) {
     return res.status(400).json({ error: "Source and amount are required." });
@@ -27,8 +27,9 @@ export const addIncome = async (req, res) => {
   }
 
   try {
-    const income = await db.addIncome(userId, source, parsedAmount, date);
-    await db.addAuditLog(userId, 'ADD_INCOME', `Added income: ${source}, amount: ${parsedAmount}`, req.ip);
+    const normalizedAccount = normalizeAccountType(account_type);
+    const income = await db.addIncome(userId, source, parsedAmount, date, normalizedAccount);
+    await db.addAuditLog(userId, 'ADD_INCOME', `Added income: ${source}, amount: ${parsedAmount}, account: ${normalizedAccount}`, req.ip);
     res.status(201).json(income);
   } catch (error) {
     console.error("Add income error:", error);
@@ -50,7 +51,7 @@ export const getIncomes = async (req, res) => {
 
 export const addExpense = async (req, res) => {
   const userId = req.user.id;
-  const { category, amount, description, date } = req.body;
+  const { category, amount, description, date, account_type } = req.body;
 
   if (!category || amount === undefined) {
     return res.status(400).json({ error: "Category and amount are required." });
@@ -67,8 +68,9 @@ export const addExpense = async (req, res) => {
   }
 
   try {
-    const expense = await db.addExpense(userId, category, parsedAmount, description, date);
-    await db.addAuditLog(userId, 'ADD_EXPENSE', `Added expense under ${category}: amount ${parsedAmount}`, req.ip);
+    const normalizedAccount = normalizeAccountType(account_type);
+    const expense = await db.addExpense(userId, category, parsedAmount, description, date, null, normalizedAccount);
+    await db.addAuditLog(userId, 'ADD_EXPENSE', `Added expense under ${category}: amount ${parsedAmount}, account: ${normalizedAccount}`, req.ip);
     res.status(201).json(expense);
   } catch (error) {
     console.error("Add expense error:", error);

@@ -55,6 +55,18 @@ export const db = {
         // Column may already exist
       }
 
+      try {
+        await client.query("ALTER TABLE incomes ADD COLUMN IF NOT EXISTS account_type VARCHAR(50) DEFAULT 'Cash';");
+      } catch (err) {
+        // ignore
+      }
+
+      try {
+        await client.query("ALTER TABLE expenses ADD COLUMN IF NOT EXISTS account_type VARCHAR(50) DEFAULT 'Cash';");
+      } catch (err) {
+        // ignore
+      }
+
       await client.query(`
         CREATE TABLE IF NOT EXISTS saving_goals (
           id SERIAL PRIMARY KEY,
@@ -143,14 +155,14 @@ export const db = {
   },
 
   // INCOME OPERATIONS
-  async addIncome(userId, source, amount, date) {
+  async addIncome(userId, source, amount, date, accountType = 'Cash') {
     const decAmount = parseFloat(amount);
     const intUserId = parseInt(userId, 10);
     const formattedDate = date ? new Date(date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
 
     const res = await pool.query(
-      'INSERT INTO incomes (user_id, source, amount, date) VALUES ($1, $2, $3, $4) RETURNING *',
-      [intUserId, source, decAmount, formattedDate]
+      'INSERT INTO incomes (user_id, source, amount, date, account_type) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+      [intUserId, source, decAmount, formattedDate, accountType]
     );
     return res.rows[0];
   },
@@ -169,15 +181,15 @@ export const db = {
   },
 
   // EXPENSE OPERATIONS
-  async addExpense(userId, category, amount, description, date, createdAt = null) {
+  async addExpense(userId, category, amount, description, date, createdAt = null, accountType = 'Cash') {
     const decAmount = parseFloat(amount);
     const intUserId = parseInt(userId, 10);
     const formattedDate = date ? new Date(date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
     const finalCreatedAt = createdAt ? new Date(createdAt).toISOString() : new Date().toISOString();
 
     const res = await pool.query(
-      'INSERT INTO expenses (user_id, category, amount, description, date, created_at) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
-      [intUserId, category, decAmount, description || '', formattedDate, finalCreatedAt]
+      'INSERT INTO expenses (user_id, category, amount, description, date, created_at, account_type) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
+      [intUserId, category, decAmount, description || '', formattedDate, finalCreatedAt, accountType]
     );
     return res.rows[0];
   },

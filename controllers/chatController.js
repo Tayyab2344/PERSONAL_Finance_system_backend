@@ -1,6 +1,6 @@
 import { db } from '../config/database.js';
 import { aiService } from '../services/aiService.js';
-import { financialEngine } from '../services/financialEngine.js';
+import { financialEngine, normalizeAccountType } from '../services/financialEngine.js';
 import { analyticsService } from '../services/analyticsService.js';
 
 export const sendMessage = async (req, res) => {
@@ -23,7 +23,7 @@ export const sendMessage = async (req, res) => {
 
     // 2. Perform action based on intent (with validations and confirmations)
     if (intent === 'ADD_INCOME') {
-      const { amount, source } = params;
+      const { amount, source, account_type } = params;
       if (!amount || !source) {
         responseText = "I detected that you want to add income, but I couldn't extract the amount or source. Please try like this: **'Add income 50000 salary'**";
       } else {
@@ -31,17 +31,18 @@ export const sendMessage = async (req, res) => {
         if (isNaN(parsedAmount) || parsedAmount <= 0) {
           responseText = "I detected you want to add income, but the amount must be a positive number. Try like: **'Add income 50000 salary'**";
         } else {
-          responseText = `I detected a request to add income:\n* **Amount:** Rs. ${parsedAmount.toLocaleString()}\n* **Source:** ${source}\n\nPlease click **Confirm** to save this transaction.`;
+          const detectedAccount = normalizeAccountType(account_type || 'Cash');
+          responseText = `I detected a request to add income:\n* **Amount:** Rs. ${parsedAmount.toLocaleString()}\n* **Source:** ${source}\n* **Account:** ${detectedAccount}\n\nPlease click **Confirm** to save this transaction.`;
           pendingAction = {
             type: 'ADD_INCOME',
-            params: { amount: parsedAmount, source }
+            params: { amount: parsedAmount, source, account_type: detectedAccount }
           };
         }
       }
     } 
     
     else if (intent === 'ADD_EXPENSE') {
-      const { amount, category } = params;
+      const { amount, category, account_type } = params;
       if (!amount || !category) {
         responseText = "I detected that you want to add an expense, but I couldn't extract the amount or category. Please try like this: **'Add expense 1200 fuel'**";
       } else {
@@ -52,10 +53,11 @@ export const sendMessage = async (req, res) => {
         } else if (!validCategories.includes(category)) {
           responseText = `I detected you want to add an expense, but the category **${category}** is invalid. Allowed categories are: ${validCategories.join(', ')}`;
         } else {
-          responseText = `I detected a request to log an expense:\n* **Amount:** Rs. ${parsedAmount.toLocaleString()}\n* **Category:** ${category}\n\nPlease click **Confirm** to save this transaction.`;
+          const detectedAccount = normalizeAccountType(account_type || 'Cash');
+          responseText = `I detected a request to log an expense:\n* **Amount:** Rs. ${parsedAmount.toLocaleString()}\n* **Category:** ${category}\n* **Paid Via:** ${detectedAccount}\n\nPlease click **Confirm** to save this transaction.`;
           pendingAction = {
             type: 'ADD_EXPENSE',
-            params: { amount: parsedAmount, category }
+            params: { amount: parsedAmount, category, account_type: detectedAccount }
           };
         }
       }
@@ -79,6 +81,8 @@ export const sendMessage = async (req, res) => {
       const summary = await financialEngine.calculateSummary(userId);
       if (summary.totalIncome === 0) {
         responseText = "You haven't recorded any income for this month yet, so your daily allowance is Rs. 0. Use **'Add income 50000 salary'** to set up your budget!";
+      } else if (summary.budgetRemaining < 0) {
+        responseText = `You have exceeded your available spending budget by **Rs. ${Math.abs(summary.budgetRemaining).toLocaleString()}** this month, so your daily allowance is **Rs. 0**. Try to minimize your expenses to get back on track!`;
       } else {
         responseText = `Based on your remaining spending budget of **Rs. ${summary.budgetRemaining.toLocaleString()}** and **${summary.remainingDays}** remaining days this month, your safe daily spending limit is **Rs. ${summary.dailySpendingAllowance.toLocaleString()} per day**.`;
       }
@@ -234,19 +238,20 @@ export const confirmAction = async (req, res) => {
   try {
     let reply = "";
     if (type === 'ADD_INCOME') {
-      const { amount, source } = params;
+      const { amount, source, account_type } = params;
       const parsedAmount = parseFloat(amount);
       if (!source || isNaN(parsedAmount) || parsedAmount <= 0) {
         return res.status(400).json({ error: "Invalid income source or amount." });
       }
       
-      const income = await db.addIncome(userId, source, parsedAmount);
-      reply = `✅ **Confirmed:** Added income of **Rs. ${income.amount.toLocaleString()}** from **${income.source}** for this month!`;
-      await db.addAuditLog(userId, 'CONFIRM_ADD_INCOME', `Chatbot confirmed income: ${source}, amount: ${parsedAmount}`, req.ip);
+      const normalizedAccount = normalizeAccountType(account_type);
+      const income = await db.addIncome(userId, source, parsedAmount, null, normalizedAccount);
+      reply = `✅ **Confirmed:** Added income of **Rs. ${income.amount.toLocaleString()}** from **${income.source}** into your **${income.account_type || 'Cash'}** account!`;
+      await db.addAuditLog(userId, 'CONFIRM_ADD_INCOME', `Chatbot confirmed income: ${source}, amount: ${parsedAmount}, account: ${normalizedAccount}`, req.ip);
     } 
     
     else if (type === 'ADD_EXPENSE') {
-      const { amount, category } = params;
+      const { amount, category, account_type } = params;
       const parsedAmount = parseFloat(amount);
       const validCategories = ['Food', 'Fuel', 'Transport', 'Education', 'Shopping', 'Bills', 'Entertainment', 'Health', 'Other'];
       
@@ -254,9 +259,10 @@ export const confirmAction = async (req, res) => {
         return res.status(400).json({ error: "Invalid expense category or amount." });
       }
 
-      const expense = await db.addExpense(userId, category, parsedAmount, `Added via chatbot with confirmation`);
-      reply = `✅ **Confirmed:** Logged expense of **Rs. ${expense.amount.toLocaleString()}** under **${expense.category}** category.`;
-      await db.addAuditLog(userId, 'CONFIRM_ADD_EXPENSE', `Chatbot confirmed expense: category ${category}, amount ${parsedAmount}`, req.ip);
+      const normalizedAccount = normalizeAccountType(account_type);
+      const expense = await db.addExpense(userId, category, parsedAmount, `Added via chatbot with confirmation`, null, null, normalizedAccount);
+      reply = `✅ **Confirmed:** Logged expense of **Rs. ${expense.amount.toLocaleString()}** under **${expense.category}** category using your **${expense.account_type || 'Cash'}** balance.`;
+      await db.addAuditLog(userId, 'CONFIRM_ADD_EXPENSE', `Chatbot confirmed expense: category ${category}, amount ${parsedAmount}, account: ${normalizedAccount}`, req.ip);
     } 
     
     else {

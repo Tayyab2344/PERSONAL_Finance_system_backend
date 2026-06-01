@@ -7,12 +7,14 @@ export const ruleParser = {
     const addIncomeRegex = /^\s*add\s+income\s+(\d+(?:\.\d+)?)\s*(?:pkr|rs|rupees)?\s+(.+)$/i;
     let match = text.match(addIncomeRegex);
     if (match) {
+      const { accountType, cleanedStr } = this.extractAccountType(match[2]);
       return {
         matched: true,
         intent: 'ADD_INCOME',
         params: {
           amount: parseFloat(match[1]),
-          source: match[2].trim()
+          source: cleanedStr,
+          account_type: accountType
         }
       };
     }
@@ -22,12 +24,14 @@ export const ruleParser = {
     const addExpenseRegex = /^\s*add\s+expense\s+(\d+(?:\.\d+)?)\s*(?:pkr|rs|rupees)?\s+(.+)$/i;
     match = text.match(addExpenseRegex);
     if (match) {
+      const { accountType, cleanedStr } = this.extractAccountType(match[2]);
       return {
         matched: true,
         intent: 'ADD_EXPENSE',
         params: {
           amount: parseFloat(match[1]),
-          category: this.normalizeCategory(match[2].trim())
+          category: this.normalizeCategory(cleanedStr),
+          account_type: accountType
         }
       };
     }
@@ -219,6 +223,31 @@ export const ruleParser = {
       intent: 'UNKNOWN',
       params: {}
     };
+  },
+
+  extractAccountType(paramStr) {
+    const lower = paramStr.toLowerCase();
+    let accountType = 'Cash';
+    let cleanedStr = paramStr;
+
+    const mappings = [
+      { regex: /\b(?:from|in|via|through|using|to)?\s*easy\s*paisa\b/gi, type: 'EasyPaisa' },
+      { regex: /\b(?:from|in|via|through|using|to)?\s*easypaisa\b/gi, type: 'EasyPaisa' },
+      { regex: /\b(?:from|in|via|through|using|to)?\s*jazz\s*cash\b/gi, type: 'JazzCash' },
+      { regex: /\b(?:from|in|via|through|using|to)?\s*jazzcash\b/gi, type: 'JazzCash' },
+      { regex: /\b(?:from|in|via|through|using|to)?\s*jazz\s*cahs\b/gi, type: 'JazzCash' },
+      { regex: /\b(?:from|in|via|through|using|to)?\s*bank\b/gi, type: 'Bank' },
+      { regex: /\b(?:from|in|via|through|using|to)?\s*cash\b/gi, type: 'Cash' }
+    ];
+
+    for (const map of mappings) {
+      if (map.regex.test(cleanedStr)) {
+        accountType = map.type;
+        cleanedStr = cleanedStr.replace(map.regex, '').replace(/\s+/g, ' ').trim();
+        break;
+      }
+    }
+    return { accountType, cleanedStr };
   },
 
   normalizeCategory(cat) {
