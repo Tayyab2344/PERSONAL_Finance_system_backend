@@ -20,7 +20,7 @@ export const seedMockData = async (req, res) => {
 
     // Helper to format YYYY-MM and YYYY-MM-DD
     const getMonthKey = (offsetMonths) => {
-      const d = new Date();
+      const d = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Karachi' }));
       d.setMonth(d.getMonth() - offsetMonths);
       const y = d.getFullYear();
       const m = (d.getMonth() + 1).toString().padStart(2, '0');

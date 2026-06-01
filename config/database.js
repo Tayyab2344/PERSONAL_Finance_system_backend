@@ -13,9 +13,10 @@ const pool = new pg.Pool({
 console.log("Database Mode: PostgreSQL (Neon Only)");
 
 const getLocalDateString = (d = new Date()) => {
-  const year = d.getFullYear();
-  const month = (d.getMonth() + 1).toString().padStart(2, '0');
-  const day = d.getDate().toString().padStart(2, '0');
+  const localD = new Date(d.toLocaleString('en-US', { timeZone: 'Asia/Karachi' }));
+  const year = localD.getFullYear();
+  const month = (localD.getMonth() + 1).toString().padStart(2, '0');
+  const day = localD.getDate().toString().padStart(2, '0');
   return `${year}-${month}-${day}`;
 };
 
@@ -35,9 +36,10 @@ const formatDateString = (date) => {
 
 const formatRowDate = (d) => {
   if (d instanceof Date) {
-    const year = d.getFullYear();
-    const month = (d.getMonth() + 1).toString().padStart(2, '0');
-    const day = d.getDate().toString().padStart(2, '0');
+    const localD = new Date(d.toLocaleString('en-US', { timeZone: 'Asia/Karachi' }));
+    const year = localD.getFullYear();
+    const month = (localD.getMonth() + 1).toString().padStart(2, '0');
+    const day = localD.getDate().toString().padStart(2, '0');
     return `${year}-${month}-${day}`;
   }
   return d;
