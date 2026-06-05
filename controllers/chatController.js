@@ -63,6 +63,30 @@ export const sendMessage = async (req, res) => {
       }
     } 
     
+    else if (intent === 'ADD_TRANSFER') {
+      const { amount, from_account, to_account, description } = params;
+      if (!amount || !from_account || !to_account) {
+        responseText = "I detected that you want to transfer money, but I couldn't extract the source, destination, or amount. Please try like this: **'Transfer 5000 from Bank to Cash'** or **'ATM withdrawal 2000'**";
+      } else {
+        const parsedAmount = parseFloat(amount);
+        if (isNaN(parsedAmount) || parsedAmount <= 0) {
+          responseText = "I detected you want to transfer money, but the amount must be a positive number. Try like: **'Transfer 5000 from Bank to Cash'**";
+        } else {
+          const detectedFrom = normalizeAccountType(from_account);
+          const detectedTo = normalizeAccountType(to_account);
+          if (detectedFrom === detectedTo) {
+            responseText = `I detected a request to transfer money, but the source and destination wallets are both **${detectedFrom}**. They must be different accounts!`;
+          } else {
+            responseText = `I detected a request to log a transfer:\n* **Amount:** Rs. ${parsedAmount.toLocaleString()}\n* **From Account:** ${detectedFrom}\n* **To Account:** ${detectedTo}\n* **Description:** ${description || 'Transfer'}\n\nPlease click **Confirm** to save this transfer.`;
+            pendingAction = {
+              type: 'ADD_TRANSFER',
+              params: { amount: parsedAmount, from_account: detectedFrom, to_account: detectedTo, description: description || 'Transfer' }
+            };
+          }
+        }
+      }
+    } 
+    
     else if (intent === 'AFFORDABILITY_CHECK') {
       const { amount, item } = params;
       if (!amount || !item) {
@@ -263,6 +287,24 @@ export const confirmAction = async (req, res) => {
       const expense = await db.addExpense(userId, category, parsedAmount, `Added via chatbot with confirmation`, null, null, normalizedAccount);
       reply = `✅ **Confirmed:** Logged expense of **Rs. ${expense.amount.toLocaleString()}** under **${expense.category}** category using your **${expense.account_type || 'Cash'}** balance.`;
       await db.addAuditLog(userId, 'CONFIRM_ADD_EXPENSE', `Chatbot confirmed expense: category ${category}, amount ${parsedAmount}, account: ${normalizedAccount}`, req.ip);
+    } 
+    
+    else if (type === 'ADD_TRANSFER') {
+      const { amount, from_account, to_account, description } = params;
+      const parsedAmount = parseFloat(amount);
+      if (isNaN(parsedAmount) || parsedAmount <= 0 || !from_account || !to_account) {
+        return res.status(400).json({ error: "Invalid transfer parameters." });
+      }
+
+      const normalizedFrom = normalizeAccountType(from_account);
+      const normalizedTo = normalizeAccountType(to_account);
+      if (normalizedFrom === normalizedTo) {
+        return res.status(400).json({ error: "Source and destination accounts must be different." });
+      }
+
+      const transfer = await db.addTransfer(userId, normalizedFrom, normalizedTo, parsedAmount, null, description || 'Transfer');
+      reply = `✅ **Confirmed:** Logged transfer of **Rs. ${transfer.amount.toLocaleString()}** from **${transfer.from_account}** to **${transfer.to_account}**!`;
+      await db.addAuditLog(userId, 'CONFIRM_ADD_TRANSFER', `Chatbot confirmed transfer: from ${normalizedFrom} to ${normalizedTo}, amount ${parsedAmount}`, req.ip);
     } 
     
     else {

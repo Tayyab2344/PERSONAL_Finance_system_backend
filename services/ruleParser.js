@@ -36,6 +36,46 @@ export const ruleParser = {
       };
     }
 
+    // 2.5 Add Transfer
+    // e.g. "transfer 5000 from bank to cash", "atm withdrawal 5000", "move 1000 from cash to easypaisa"
+    const transferRegex = /^\s*(?:transfer|send|move)\s+(\d+(?:\.\d+)?)\s*(?:pkr|rs|rupees)?\s+(?:from\s+)?(bank|easypaisa|easy\s*paisa|jazzcash|jazz\s*cash|cash)\s+to\s+(bank|easypaisa|easy\s*paisa|jazzcash|jazz\s*cash|cash)(?:\s+(.+))?$/i;
+    const atmRegex = /^\s*(?:atm\s+(?:withdrawal|withdraw|out)?|withdraw\s+from\s+atm)\s+(\d+(?:\.\d+)?)\s*(?:pkr|rs|rupees)?$/i;
+
+    match = text.match(transferRegex);
+    if (match) {
+      const normalizeAcc = (type) => {
+        const clean = type.toLowerCase().replace(/[^a-z0-9]/g, '');
+        if (clean.includes('easypaisa') || clean.includes('easy')) return 'EasyPaisa';
+        if (clean.includes('jazzcash') || clean.includes('jazz') || clean.includes('jc')) return 'JazzCash';
+        if (clean.includes('bank') || clean.includes('card') || clean.includes('hbl') || clean.includes('account')) return 'Bank';
+        return 'Cash';
+      };
+      return {
+        matched: true,
+        intent: 'ADD_TRANSFER',
+        params: {
+          amount: parseFloat(match[1]),
+          from_account: normalizeAcc(match[2]),
+          to_account: normalizeAcc(match[3]),
+          description: match[4] ? match[4].trim() : 'Transfer'
+        }
+      };
+    }
+
+    match = text.match(atmRegex);
+    if (match) {
+      return {
+        matched: true,
+        intent: 'ADD_TRANSFER',
+        params: {
+          amount: parseFloat(match[1]),
+          from_account: 'Bank',
+          to_account: 'Cash',
+          description: 'ATM Withdrawal'
+        }
+      };
+    }
+
     // 3. Affordability Check
     // e.g. "can i afford a 5000 PKR course?", "can i buy a laptop for 150000", "can i purchase a 1500 PKR game"
     const affordRegex1 = /can\s+i\s+(?:afford|buy|purchase)\s+(?:a\s+)?(\d+(?:\.\d+)?)\s*(?:pkr|rs|rupees)?\s+(.+)/i;

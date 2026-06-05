@@ -302,6 +302,96 @@ export const upsertBudget = async (req, res) => {
   }
 };
 
+export const addTransfer = async (req, res) => {
+  const userId = req.user.id;
+  const { from_account, to_account, amount, date, description } = req.body;
+
+  if (!from_account || !to_account || amount === undefined) {
+    return res.status(400).json({ error: "Source, destination accounts and amount are required." });
+  }
+
+  const parsedAmount = parseFloat(amount);
+  if (isNaN(parsedAmount) || parsedAmount <= 0) {
+    return res.status(400).json({ error: "Transfer amount must be a positive number." });
+  }
+
+  if (from_account === to_account) {
+    return res.status(400).json({ error: "Source and destination accounts must be different." });
+  }
+
+  try {
+    const normalizedFrom = normalizeAccountType(from_account);
+    const normalizedTo = normalizeAccountType(to_account);
+    const transfer = await db.addTransfer(userId, normalizedFrom, normalizedTo, parsedAmount, date, description);
+    await db.addAuditLog(userId, 'ADD_TRANSFER', `Transferred Rs. ${parsedAmount} from ${normalizedFrom} to ${normalizedTo}`, req.ip);
+    res.status(201).json(transfer);
+  } catch (error) {
+    console.error("Add transfer error:", error);
+    res.status(500).json({ error: "Failed to log transfer." });
+  }
+};
+
+export const getTransfers = async (req, res) => {
+  const userId = req.user.id;
+  const { month } = req.query; // YYYY-MM
+  try {
+    const list = await db.getTransfers(userId, month);
+    res.json(list);
+  } catch (error) {
+    console.error("Get transfers error:", error);
+    res.status(500).json({ error: "Failed to retrieve transfers." });
+  }
+};
+
+export const updateTransfer = async (req, res) => {
+  const userId = req.user.id;
+  const { id } = req.params;
+  const { from_account, to_account, amount, date, description } = req.body;
+
+  if (!from_account || !to_account || amount === undefined) {
+    return res.status(400).json({ error: "Source, destination accounts and amount are required." });
+  }
+
+  const parsedAmount = parseFloat(amount);
+  if (isNaN(parsedAmount) || parsedAmount <= 0) {
+    return res.status(400).json({ error: "Transfer amount must be a positive number." });
+  }
+
+  if (from_account === to_account) {
+    return res.status(400).json({ error: "Source and destination accounts must be different." });
+  }
+
+  try {
+    const normalizedFrom = normalizeAccountType(from_account);
+    const normalizedTo = normalizeAccountType(to_account);
+    const transfer = await db.updateTransfer(userId, id, normalizedFrom, normalizedTo, parsedAmount, date, description);
+    if (!transfer) {
+      return res.status(404).json({ error: "Transfer not found or access denied." });
+    }
+    await db.addAuditLog(userId, 'UPDATE_TRANSFER', `Updated transfer ID ${id}: Rs. ${parsedAmount} from ${normalizedFrom} to ${normalizedTo}`, req.ip);
+    res.json(transfer);
+  } catch (error) {
+    console.error("Update transfer error:", error);
+    res.status(500).json({ error: "Failed to update transfer." });
+  }
+};
+
+export const deleteTransfer = async (req, res) => {
+  const userId = req.user.id;
+  const { id } = req.params;
+  try {
+    const deleted = await db.deleteTransfer(userId, id);
+    if (!deleted) {
+      return res.status(404).json({ error: "Transfer not found or access denied." });
+    }
+    await db.addAuditLog(userId, 'DELETE_TRANSFER', `Deleted transfer ID ${id}`, req.ip);
+    res.json({ message: "Transfer deleted successfully." });
+  } catch (error) {
+    console.error("Delete transfer error:", error);
+    res.status(500).json({ error: "Failed to delete transfer." });
+  }
+};
+
 export const resetData = async (req, res) => {
   const userId = req.user.id;
   try {

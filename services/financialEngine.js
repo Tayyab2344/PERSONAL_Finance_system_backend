@@ -82,6 +82,7 @@ export const financialEngine = {
     // Fetch all-time records for wallet balances
     const allIncomes = await db.getIncomes(userId);
     const allExpenses = await db.getExpenses(userId);
+    const allTransfers = await db.getTransfers(userId);
 
     const accountBalances = {
       Cash: 0,
@@ -101,6 +102,17 @@ export const financialEngine = {
       const type = normalizeAccountType(item.account_type);
       if (accountBalances[type] !== undefined) {
         accountBalances[type] -= item.amount;
+      }
+    });
+
+    allTransfers.forEach(item => {
+      const fromType = normalizeAccountType(item.from_account);
+      const toType = normalizeAccountType(item.to_account);
+      if (accountBalances[fromType] !== undefined) {
+        accountBalances[fromType] -= item.amount;
+      }
+      if (accountBalances[toType] !== undefined) {
+        accountBalances[toType] += item.amount;
       }
     });
 

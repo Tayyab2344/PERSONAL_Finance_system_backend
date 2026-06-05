@@ -150,6 +150,19 @@ export const db = {
           timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
       `);
+
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS transfers (
+          id SERIAL PRIMARY KEY,
+          user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+          from_account VARCHAR(50) NOT NULL,
+          to_account VARCHAR(50) NOT NULL,
+          amount DECIMAL(12, 2) NOT NULL,
+          date DATE NOT NULL,
+          description TEXT,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+      `);
       console.log("PostgreSQL database schemas verified/created successfully.");
     } catch (err) {
       console.error("Error creating database tables:", err);
@@ -286,6 +299,56 @@ export const db = {
       [category, decAmount, description || '', formattedDate, accountType || 'Cash', intExpenseId, intUserId]
     );
     return res.rows[0] ? { ...res.rows[0], amount: parseFloat(res.rows[0].amount), date: formatRowDate(res.rows[0].date) } : null;
+  },
+
+  // TRANSFER OPERATIONS
+  async addTransfer(userId, fromAccount, toAccount, amount, date, description = '') {
+    const decAmount = parseFloat(amount);
+    const intUserId = parseInt(userId, 10);
+    const formattedDate = formatDateString(date);
+
+    const res = await pool.query(
+      'INSERT INTO transfers (user_id, from_account, to_account, amount, date, description) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
+      [intUserId, fromAccount, toAccount, decAmount, formattedDate, description || '']
+    );
+    return res.rows[0] ? { ...res.rows[0], amount: parseFloat(res.rows[0].amount), date: formatRowDate(res.rows[0].date) } : null;
+  },
+
+  async getTransfers(userId, month = null) {
+    const intUserId = parseInt(userId, 10);
+    let query = 'SELECT * FROM transfers WHERE user_id = $1';
+    const params = [intUserId];
+    if (month) {
+      query += " AND TO_CHAR(date, 'YYYY-MM') = $2";
+      params.push(month);
+    }
+    query += ' ORDER BY date DESC, id DESC';
+    const res = await pool.query(query, params);
+    return res.rows.map(r => ({
+      ...r,
+      amount: parseFloat(r.amount),
+      date: formatRowDate(r.date)
+    }));
+  },
+
+  async updateTransfer(userId, transferId, fromAccount, toAccount, amount, date, description) {
+    const intUserId = parseInt(userId, 10);
+    const intTransferId = parseInt(transferId, 10);
+    const decAmount = parseFloat(amount);
+    const formattedDate = formatDateString(date);
+
+    const res = await pool.query(
+      'UPDATE transfers SET from_account = $1, to_account = $2, amount = $3, date = $4, description = $5 WHERE id = $6 AND user_id = $7 RETURNING *',
+      [fromAccount, toAccount, decAmount, formattedDate, description || '', intTransferId, intUserId]
+    );
+    return res.rows[0] ? { ...res.rows[0], amount: parseFloat(res.rows[0].amount), date: formatRowDate(res.rows[0].date) } : null;
+  },
+
+  async deleteTransfer(userId, transferId) {
+    const intUserId = parseInt(userId, 10);
+    const intTransferId = parseInt(transferId, 10);
+    await pool.query('DELETE FROM transfers WHERE id = $1 AND user_id = $2', [intTransferId, intUserId]);
+    return true;
   },
 
   // SAVINGS GOALS OPERATIONS
@@ -438,6 +501,7 @@ export const db = {
       await client.query('DELETE FROM saving_goals WHERE user_id = $1', [intUserId]);
       await client.query('DELETE FROM expenses WHERE user_id = $1', [intUserId]);
       await client.query('DELETE FROM incomes WHERE user_id = $1', [intUserId]);
+      await client.query('DELETE FROM transfers WHERE user_id = $1', [intUserId]);
       await client.query('DELETE FROM budgets WHERE user_id = $1', [intUserId]);
       await client.query('DELETE FROM chat_history WHERE user_id = $1', [intUserId]);
       await client.query('COMMIT');
