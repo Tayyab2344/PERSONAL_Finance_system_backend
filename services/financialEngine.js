@@ -133,6 +133,7 @@ export const financialEngine = {
       remainingDays,
       dailySpendingAllowance: parseFloat(dailySpendingAllowance.toFixed(2)),
       currentSavings,
+      targetSavings,
       savingsProgress,
       goalsCount: goals.length,
       totalBalance,
