@@ -39,13 +39,25 @@ export const financialEngine = {
   async calculateSummary(userId, month = null) {
     const { monthKey, currentDay, totalDays } = this.getDateDetails(month ? `${month}-01` : null);
     
-    // Get incomes, expenses, budgets, saving goals
-    const incomes = await db.getIncomes(userId, monthKey);
-    const expenses = await db.getExpenses(userId, monthKey);
+    // Fetch all-time records for wallet balances and carryOver calculation
+    const allIncomes = await db.getIncomes(userId);
+    const allExpenses = await db.getExpenses(userId);
+    const allTransfers = await db.getTransfers(userId);
+    
+    // Filter incomes and expenses for the specific month
+    const incomes = allIncomes.filter(item => item.date.substring(0, 7) === monthKey);
+    const expenses = allExpenses.filter(item => item.date.substring(0, 7) === monthKey);
     const budgetObj = await db.getBudget(userId, monthKey);
     const goals = await db.getSavingGoals(userId);
 
-    const totalIncome = incomes.reduce((sum, item) => sum + item.amount, 0);
+    // Calculate carry-over balance from previous months
+    const carryOverIncomes = allIncomes.filter(item => item.date.substring(0, 7) < monthKey).reduce((sum, item) => sum + item.amount, 0);
+    const carryOverExpenses = allExpenses.filter(item => item.date.substring(0, 7) < monthKey).reduce((sum, item) => sum + item.amount, 0);
+    const carryOverBalance = carryOverIncomes - carryOverExpenses;
+
+    const monthlyIncome = incomes.reduce((sum, item) => sum + item.amount, 0);
+    // Total income for this month is the monthly income plus the carry-over balance from previous months
+    const totalIncome = monthlyIncome + carryOverBalance;
     const totalExpenses = expenses.reduce((sum, item) => sum + item.amount, 0);
     const savingsTarget = budgetObj ? budgetObj.savings_target : 0;
     
@@ -78,11 +90,6 @@ export const financialEngine = {
     const currentSavings = goals.reduce((sum, g) => sum + g.current_amount, 0);
     const targetSavings = goals.reduce((sum, g) => sum + g.target_amount, 0);
     const savingsProgress = targetSavings > 0 ? Math.min(100, Math.round((currentSavings / targetSavings) * 100)) : 0;
-
-    // Fetch all-time records for wallet balances
-    const allIncomes = await db.getIncomes(userId);
-    const allExpenses = await db.getExpenses(userId);
-    const allTransfers = await db.getTransfers(userId);
 
     const accountBalances = {
       Cash: 0,
